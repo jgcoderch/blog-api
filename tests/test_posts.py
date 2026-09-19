@@ -64,6 +64,32 @@ def test_register_rejects_password_without_digit(client):
     response = client.post("/register", json={"email": "semnumero@teste.com", "password": "senhasenha"})
     assert response.status_code == 422
 
+def test_login_locks_after_too_many_failed_attempts(client):
+    email = "bruteforce@teste.com"
+    client.post("/register", json={"email": email, "password": "senha123"})
+
+    for _ in range(5):
+        response = client.post("/login", data={"username": email, "password": "senhaerrada"})
+        assert response.status_code == 401
+
+    response = client.post("/login", data={"username": email, "password": "senha123"})
+    assert response.status_code == 429
+
+
+def test_successful_login_resets_failed_attempts(client):
+    email = "resetatentativas@teste.com"
+    client.post("/register", json={"email": email, "password": "senha123"})
+
+    for _ in range(3):
+        response = client.post("/login", data={"username": email, "password": "senhaerrada"})
+        assert response.status_code == 401
+
+    response = client.post("/login", data={"username": email, "password": "senha123"})
+    assert response.status_code == 200
+
+    response = client.post("/login", data={"username": email, "password": "senhaerrada"})
+    assert response.status_code == 401
+
 def test_other_user_cannot_delete_comment(client):
     headers_a = register_and_login(client, "autor@teste.com", "senha123")
     headers_b = register_and_login(client, "estranho@teste.com", "senha123")
