@@ -50,6 +50,19 @@ def test_admin_can_edit_any_post(client):
     response = client.put(f"/posts/{post_id}", json={"title": "Editado pelo admin", "content": "..."}, headers=headers_admin)
     assert response.status_code == 200
 
+def test_register_rejects_invalid_email(client):
+    response = client.post("/register", json={"email": "nao-e-email", "password": "senha123"})
+    assert response.status_code == 422
+
+
+def test_register_rejects_short_password(client):
+    response = client.post("/register", json={"email": "curta@teste.com", "password": "abc123"})
+    assert response.status_code == 422
+
+ 
+def test_register_rejects_password_without_digit(client):
+    response = client.post("/register", json={"email": "semnumero@teste.com", "password": "senhasenha"})
+    assert response.status_code == 422
 
 def test_other_user_cannot_delete_comment(client):
     headers_a = register_and_login(client, "autor@teste.com", "senha123")
