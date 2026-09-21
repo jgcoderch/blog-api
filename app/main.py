@@ -14,7 +14,7 @@ from app.security import (
     decode_access_token,
     register_failed_login,
     reset_failed_login,
-    get_login_lockout_seconds_remaining,
+    get_lockout_seconds_remaining,
 )
 
 app = FastAPI()
@@ -67,20 +67,22 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 @app.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     email = form_data.username
-
-    lockout_seconds = get_login_lockout_seconds_remaining(email)
-    if lockout_seconds > 0:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Muitas tentativas de login. Tente novamente em {lockout_seconds} segundos.",
-        )
-
     user = db.query(models.User).filter(models.User.email == email).first()
+
+    if user:
+        lockout_seconds = get_lockout_seconds_remaining(user)
+        if lockout_seconds > 0:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Muitas tentativas de login. Tente novamente em {lockout_seconds} segundos.",
+            )
+
     if not user or not verify_password(form_data.password, user.hashed_password):
-        register_failed_login(email)
+        if user:
+            register_failed_login(db, user)
         raise HTTPException(status_code=401, detail="Email ou senha incorretos")
 
-    reset_failed_login(email)
+    reset_failed_login(db, user)
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 

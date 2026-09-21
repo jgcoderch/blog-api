@@ -16,6 +16,8 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     role = Column(Enum(UserRole), default=UserRole.user, nullable=False)
+    failed_attempts = Column(Integer, default=0, nullable=False)
+    locked_until = Column(DateTime(timezone=True), nullable=True)
 
     posts= relationship("Post", back_populates="owner", cascade="all, delete-orphan")
     comments = relationship("Comment", back_populates="owner", cascade="all, delete-orphan")

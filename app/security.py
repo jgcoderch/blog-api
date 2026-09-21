@@ -15,30 +15,29 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 MAX_FAILED_LOGIN_ATTEMPTS = 5
 LOGIN_LOCKOUT_MINUTES = 15
 
-_failed_login_attempts: dict[str, dict] = {}
 
-
-def register_failed_login(email: str) -> None:
-    record = _failed_login_attempts.setdefault(email, {"count": 0, "locked_until": None})
-    record["count"] += 1
-    if record["count"] >= MAX_FAILED_LOGIN_ATTEMPTS:
-        record["locked_until"] = datetime.now(timezone.utc) + timedelta(minutes=LOGIN_LOCKOUT_MINUTES)
-
-
-def reset_failed_login(email: str) -> None:
-    _failed_login_attempts.pop(email, None)
-
-
-def get_login_lockout_seconds_remaining(email: str) -> int:
-    record = _failed_login_attempts.get(email)
-    if not record or not record["locked_until"]:
+def get_lockout_seconds_remaining(user) -> int:
+    if not user.locked_until:
         return 0
 
-    remaining = (record["locked_until"] - datetime.now(timezone.utc)).total_seconds()
-    if remaining <= 0:
-        _failed_login_attempts.pop(email, None)
-        return 0
-    return int(remaining)
+    locked_until = user.locked_until
+    if locked_until.tzinfo is None:
+        locked_until = locked_until.replace(tzinfo=timezone.utc)
+
+    remaining = (locked_until - datetime.now(timezone.utc)).total_seconds()
+    return int(remaining) if remaining > 0 else 0
+
+def register_failed_login(db, user) -> None:
+    user.failed_attempts += 1
+    if user.failed_attempts >= MAX_FAILED_LOGIN_ATTEMPTS:
+        user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=LOGIN_LOCKOUT_MINUTES)
+    db.commit()
+
+
+def reset_failed_login(db, user) -> None:
+    user.failed_attempts = 0
+    user.locked_until = None
+    db.commit()
 
 
 def hash_password(password: str) -> str:
